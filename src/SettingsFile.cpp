@@ -7,23 +7,44 @@
 #include <utility/fileutils.h>
 
 RTTI_BEGIN_CLASS(nap::SettingsFile)
-	RTTI_PROPERTY("Path", &nap::SettingsFile::mPath, nap::rtti::EPropertyMetaData::Required)
+	RTTI_PROPERTY("FileName", &nap::SettingsFile::mFileName, nap::rtti::EPropertyMetaData::Required)
+	RTTI_PROPERTY("Directory", &nap::SettingsFile::mDirectory, nap::rtti::EPropertyMetaData::Default)
 RTTI_END_CLASS
 
 namespace nap
 {
 
+	std::string SettingsFile::getPath() const
+	{
+		if (mDirectory != nullptr)
+			return utility::joinPath({ mDirectory->get(), mFileName });
+
+		return mFileName;
+	}
+
+
 	bool SettingsFile::init(utility::ErrorState& errorState)
 	{
+		std::string path = mFileName;
+		if (mDirectory != nullptr)
+		{
+			auto dir = mDirectory->get();
+			path = utility::joinPath({ dir, mFileName });
+		}
+
 		// No settings file present yet, ignore
-		if (!utility::fileExists(mPath))
-			return true;
+		if (!utility::fileExists(path))
+		{
+			path = mFileName;
+			if (!utility::fileExists(path))
+				return true;
+		}
 
 		// Read file to string
 		std::string json;
-		if (!utility::readFileToString(mPath, json, errorState))
+		if (!utility::readFileToString(path, json, errorState))
 		{
-			errorState.fail("Failed to read settings file %s", mPath.c_str());
+			errorState.fail("Failed to read settings file %s", path.c_str());
 			return false;
 		}
 
@@ -31,7 +52,7 @@ namespace nap
 		rapidjson::Document jsonDocument;
 		jsonDocument.SetObject();
 		jsonDocument.Parse(json.c_str());
-		if (!errorState.check(!jsonDocument.HasParseError(), "Failed to parse settings file %s", mPath.c_str()))
+		if (!errorState.check(!jsonDocument.HasParseError(), "Failed to parse settings file %s", path.c_str()))
 			return false;
 
 		// Create settings tree
@@ -60,7 +81,7 @@ namespace nap
 		jsonDocument.Accept(writer);
 
 		// Write the json string to a file
-		utility::writeStringToFile(mPath, stringBuffer.GetString());
+		utility::writeStringToFile(getPath(), stringBuffer.GetString());
 	}
 
 }

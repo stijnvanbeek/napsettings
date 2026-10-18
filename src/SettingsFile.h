@@ -1,6 +1,8 @@
 #pragma once
 
 #include <Settings.h>
+#include <PlatformSpecificDir.h>
+#include <nap/resourceptr.h>
 
 namespace nap
 {
@@ -25,7 +27,12 @@ namespace nap
 		void onDestroy() override;
 
 		/**
-		 * Save the settings to a json file at mPath
+		 * @return The full path of the settings file, computed from mFileName and mPath.
+		 */
+		std::string getPath() const;
+
+		/**
+		 * Save the settings to a json file at the path returned by getPath().
 		 */
 		void save();
 
@@ -34,7 +41,8 @@ namespace nap
 		 */
 		SettingGroup& getRoot() { return mRoot; }
 
-		std::string mPath; ///< Property: 'Path' Path to save the settings file to
+		std::string mFileName; ///< Property: 'FileName' Filename of the settings file
+		ResourcePtr<PlatformSpecificDir> mDirectory = nullptr; ///< Property: 'Path' Link to a PlatformSpecificDir resource that determines where the settings file is saved and reloaded
 
 	private:
 		SettingGroup mRoot;
