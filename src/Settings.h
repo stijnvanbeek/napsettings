@@ -10,14 +10,18 @@ namespace nap
 
 	/**
 	 * Base class for all Setting objects
-	 * The inherited mID property indicates the name of the setting in the json settings file.
 	 */
-	class SettingBase : public rtti::Object
+	class SettingBase
 	{
-		RTTI_ENABLE(rtti::Object)
+		RTTI_ENABLE()
 
 	public:
 		SettingBase() = default;
+
+		SettingBase(SettingBase&) = delete;
+		SettingBase& operator=(const SettingBase&) = delete;
+		SettingBase(SettingBase&&) = delete;
+		SettingBase& operator=(SettingBase&&) = delete;
 	};
 
 
@@ -82,9 +86,29 @@ namespace nap
 		SettingGroup* getOrCreateGroup(const std::string& name);
 
 		/**
+		 * Remove setting.
+		 * @param name Name of the setting to be removed.
+		 */
+		void remove(const std::string& name);
+
+		/**
 		 * @return Number of settings in the group
 		 */
 		int getSize() const { return mSettings.size(); }
+
+		// Map behaviour
+		std::map<std::string, std::unique_ptr<SettingBase>>::iterator begin() { return mSettings.begin(); }
+		std::map<std::string, std::unique_ptr<SettingBase>>::iterator end() { return mSettings.end(); }
+		std::map<std::string, std::unique_ptr<SettingBase>>::const_iterator begin() const { return mSettings.begin(); }
+		std::map<std::string, std::unique_ptr<SettingBase>>::const_iterator end() const { return mSettings.end(); }
+
+		/**
+		 * Access a setting by name. Does not create the setting if it does not exist yet.
+		 * @param name Name of the setting
+		 * @return Pointer to the setting at the given name, nullptr if no such setting exists.
+		 */
+		SettingBase* operator[](const std::string& name) { auto it = mSettings.find(name); return it == mSettings.end() ? nullptr : it->second.get(); }
+		const SettingBase* operator[](const std::string& name) const { auto it = mSettings.find(name); return it == mSettings.end() ? nullptr : it->second.get(); }
 
 		/**
 		 * Tries to retrieve setting from the group
@@ -93,12 +117,12 @@ namespace nap
 		 * @return Pointer to the setting if found with specified type, otherwise nullptr.
 		 */
 		template <typename T>
-		Setting<T>* get(const std::string& name)
+		Setting<T>* get(const std::string& name) const
 		{
-			auto it = std::find_if(mSettings.begin(), mSettings.end(), [&](auto& e){ return e->mID == name; });
+			auto it = mSettings.find(name);
 			if (it == mSettings.end())
 				return nullptr;
-			return rtti_cast<Setting<T>>(it->get());
+			return rtti_cast<Setting<T>>(it->second.get());
 		}
 
 		/**
@@ -115,7 +139,7 @@ namespace nap
 		void writeToJson(rapidjson::Value& object, rapidjson::Document::AllocatorType& allocator);
 
 	private:
-		std::vector<std::unique_ptr<SettingBase>> mSettings;
+		std::map<std::string, std::unique_ptr<SettingBase>> mSettings;
 	};
 
 
@@ -135,9 +159,9 @@ namespace nap
 	template <typename T>
 	Setting<T>* SettingGroup::find(const std::string& name)
 	{
-		auto it = std::find_if(mSettings.begin(), mSettings.end(), [&](auto& setting){ return setting->mID == name;  });
+		auto it = mSettings.find(name);
 		if (it != mSettings.end())
-			return rtti_cast<Setting<T>>(it->get());
+			return rtti_cast<Setting<T>>(it->second.get());
 		else
 			return nullptr;
 	}
@@ -150,10 +174,9 @@ namespace nap
         if (setting == nullptr)
         {
             std::unique_ptr<Setting<T>> newSetting = std::make_unique<Setting<T>>();
-            newSetting->mID = name;
             newSetting->mValue = defaultValue;
             auto result = newSetting.get();
-            mSettings.emplace_back(std::move(newSetting));
+            mSettings[name] = std::move(newSetting);
             return result;
         }
         return setting;
@@ -167,9 +190,8 @@ namespace nap
 		if (setting == nullptr)
 		{
 			std::unique_ptr<Setting<T>> newSetting = std::make_unique<Setting<T>>();
-			newSetting->mID = name;
 			newSetting->mValue = value;
-			mSettings.emplace_back(std::move(newSetting));
+			mSettings[name] = std::move(newSetting);
 		}
 		else
 			setting->mValue = value;
